@@ -5,19 +5,19 @@
 ## Backend
 
 - Real application
- - RTL-SDR(s)
- - raspberry pi
- - rtl-asi to send the data to server
+    - RTL-SDR(s)
+    - Raspberry pi
+    - RTL-asi to send the data to server
 
 - Testing 
- - Simulate data from rtl-asi and send it to the server
+    - Simulate data from rtl-asi and send it to the server
 
 - Server
- - Recives data from multiple clients
- - Decodes the data
- - Try to find more info through some apis
- - stores it in db
- - updates the db as new data is fed
+    - Receives data from multiple clients
+    - Decodes the data
+    - Try to find more info through some apis
+    - Stores it in db
+    - Updates the db as new data is fed
 
 
 ## Frontend
