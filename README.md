@@ -26,7 +26,22 @@
 - show the data to the user
 - make it pretty
 
----
+-------
 
 # Stuff that needs to be done
-- []  
+
+## Backend
+- [] Build a simple script for the clients(RTL-SDR) to connect to the server
+- [] Find a way to send simulated ASI data to the server
+- [] Make a DB for the server
+- [] Receive Decode the ASI data 
+- [] Find more info on the ship and save it in the server
+- [] Make a endpoint to send the data to the frontend
+- [] Use websockets
+
+## Frontend
+- [] Make the map view
+- [] Receive the data from the server (Websockets?)
+- [] Plot the ships on the map
+- [] Show more info about the ship on hover
+- [] Make it pretty
