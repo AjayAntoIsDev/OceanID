@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-UDP Server to receive AIS messages from rtl_ais or test_sender
-Listens on UDP port and processes incoming NMEA AIS messages
-"""
 
 import socket
 import sys

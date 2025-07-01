@@ -32,7 +32,7 @@
 
 ## Backend
 - [] Build a simple script for the clients(RTL-SDR) to connect to the server
-- [] Find a way to send simulated AIS data to the server
+- [X] Find a way to send simulated AIS data to the server
 - [] Make a DB for the server
 - [] Receive Decode the AIS data 
 - [] Find more info on the ship and save it in the server
