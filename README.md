@@ -7,10 +7,10 @@
 - Real application
     - RTL-SDR(s)
     - Raspberry pi
-    - RTL-asi to send the data to server
+    - RTL-ais to send the data to server
 
 - Testing 
-    - Simulate data from rtl-asi and send it to the server
+    - Simulate data from rtl-ais and send it to the server
 
 - Server
     - Receives data from multiple clients
@@ -32,9 +32,9 @@
 
 ## Backend
 - [] Build a simple script for the clients(RTL-SDR) to connect to the server
-- [] Find a way to send simulated ASI data to the server
+- [] Find a way to send simulated AIS data to the server
 - [] Make a DB for the server
-- [] Receive Decode the ASI data 
+- [] Receive Decode the AIS data 
 - [] Find more info on the ship and save it in the server
 - [] Make a endpoint to send the data to the frontend
 - [] Use websockets
