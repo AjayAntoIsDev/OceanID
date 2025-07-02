@@ -1,42 +1,16 @@
-# udp_api_server.py
-import asyncio
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from pyais.stream import TCPConnection
 
-ais_messages = []
+host = '153.44.253.27'
+port = 5631
 
-class UDPServerProtocol(asyncio.DatagramProtocol):
-    def connection_made(self, transport):
-        self.transport = transport
-        
-    def datagram_received(self, data, addr):
-        message = data.decode()
-        print(f"UDP received: {message} from {addr}")
-        ais_messages.append({"from": addr, "message": message})
+for msg in TCPConnection(host, port=port):
+    decoded_message = msg.decode()
+    ais_content = decoded_message
 
+    print('*' * 80)
+    if msg.tag_block:
+        # decode & print the tag block if it is available
+        msg.tag_block.init()
+        print(msg.tag_block.asdict())
 
-async def start_udp_server():
-    loop = asyncio.get_running_loop()
-    transport, _ = await loop.create_datagram_endpoint(
-        lambda: UDPServerProtocol(),
-        local_addr=("0.0.0.0", 9999)
-    )
-    print("UDP server listening on port 9999")
-    return transport
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    transport = await start_udp_server()
-    yield
-    # Shutdown
-    transport.close()
-
-
-app = FastAPI(lifespan=lifespan)
-
-
-@app.get("/messages")
-async def get_messages():
-    return ais_messages
+    print(ais_content)
