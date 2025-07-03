@@ -1,8 +1,11 @@
 # udp_api_server.py
 import asyncio
+import redis
+import json
+import time
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-import json
 from ais_decoder import AISDecoder
 from pyais.stream import TagBlockQueue
 from pyais.queue import NMEAQueue
@@ -14,23 +17,169 @@ import threading
 ais_messages = []
 decoder = AISDecoder()
 tbq_ais = TagBlockQueue()
-queue_ais   = NMEAQueue(tbq=tbq_ais)
+queue_ais = NMEAQueue(tbq=tbq_ais)
 
+# Valkey/Redis connection
+valkey_client = None
 
-def sort_ais(messages):
+class ValkeyAISStore:
+    def __init__(self, host='localhost', port=6379, db=0):
+        self.client = redis.Redis(host=host, port=port, db=db, decode_responses=True)
+        self.test_connection()
+    
+    def test_connection(self):
+        try:
+            self.client.ping()
+            print("✅ Connected to Valkey server")
+        except Exception as e:
+            print(f"❌ Failed to connect to Valkey: {e}")
+    
+    def update_ship_position(self, data):
+        """Update ship position data (Types 1, 2, 3, 18)"""
+        mmsi = data["mmsi"]
+        
+        position_key = f"ship:position:{mmsi}"
+        position_data = {
+            'mmsi': mmsi,
+            'lat': data["position"]["latitude"],
+            'lon': data["position"]["longitude"],
+            'sog': data["movement"]["sog"],
+            'cog': data["movement"]["cog"],
+            'accuracy': data["position"]["accuracy"],
+            'timestamp': data.get("timestamp") or datetime.utcnow().isoformat(),
+            'last_seen': datetime.utcnow().isoformat(),
+            'message_type': data["source"]["message_type"]
+        }
+        
+        if data["movement"].get("heading") is not None:
+            position_data['heading'] = data["movement"]["heading"]
+        if data["movement"].get("rot") is not None:
+            position_data['rot'] = data["movement"]["rot"]
+        if data["voyage_info"].get("nav_status") is not None:
+            position_data['nav_status'] = data["voyage_info"]["nav_status"]
+        
+        self.client.hset(position_key, mapping=position_data)
+        self.client.expire(position_key, 3600)
+        
+        if data["position"]["latitude"] and data["position"]["longitude"]:
+            self.client.geoadd("ships:locations", 
+                             (data["position"]["longitude"], 
+                              data["position"]["latitude"], 
+                              mmsi))
+        
+        history_key = f"ship:history:{mmsi}"
+        score = int(time.time())
+        self.client.zadd(history_key, {json.dumps(position_data): score})
+        
+        # Remove old entries (older than 24 hours)
+        cutoff = int((datetime.utcnow() - timedelta(hours=24)).timestamp())
+        self.client.zremrangebyscore(history_key, 0, cutoff)
+        
+        print(f"📍 Updated position for MMSI {mmsi}: {data['position']['latitude']}, {data['position']['longitude']}")
+    
+    def update_ship_info(self, data):
+        """Update ship static data (Type 5)"""
+        mmsi = data["mmsi"]
+        info_key = f"ship:info:{mmsi}"
+        
+        ship_info = {
+            'mmsi': mmsi,
+            'vessel_name': data["vessel_info"]["name"],
+            'callsign': data["vessel_info"]["callsign"],
+            'imo': data["vessel_info"]["imo"],
+            'ship_type': data["vessel_info"]["ship_type"],
+            'to_bow': data["vessel_info"]["dimensions"]["to_bow"],
+            'to_stern': data["vessel_info"]["dimensions"]["to_stern"],
+            'to_port': data["vessel_info"]["dimensions"]["to_port"],
+            'to_starboard': data["vessel_info"]["dimensions"]["to_starboard"],
+            'destination': data["voyage_info"]["destination"],
+            'eta_month': data["voyage_info"]["eta"]["month"],
+            'eta_day': data["voyage_info"]["eta"]["day"],
+            'eta_hour': data["voyage_info"]["eta"]["hour"],
+            'eta_minute': data["voyage_info"]["eta"]["minute"],
+            'draught': data["voyage_info"]["draught"],
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        self.client.hset(info_key, mapping=ship_info)
+        
+        print(f"🚢 Updated vessel info for MMSI {mmsi}: {data['vessel_info']['name']}")
+    
+    def update_base_station(self, data):
+        """Update base station data (Type 4)"""
+        mmsi = data["mmsi"]
+        base_key = f"base:station:{mmsi}"
+        
+        base_data = {
+            'mmsi': mmsi,
+            'lat': data["position"]["latitude"],
+            'lon': data["position"]["longitude"],
+            'accuracy': data["position"]["accuracy"],
+            'year': data["timestamp"]["year"],
+            'month': data["timestamp"]["month"],
+            'day': data["timestamp"]["day"],
+            'hour': data["timestamp"]["hour"],
+            'minute': data["timestamp"]["minute"],
+            'second': data["timestamp"]["second"],
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        self.client.hset(base_key, mapping=base_data)
+        self.client.expire(base_key, 86400)
+        
+        print(f"📡 Updated base station MMSI {mmsi}")
+    
+    def get_ships_in_area(self, center_lat, center_lon, radius_km=50):
+        """Get all ships within a radius"""
+        try:
+            nearby = self.client.georadius(
+                "ships:locations", 
+                center_lon, center_lat, 
+                radius_km, unit='km', 
+                withcoord=True
+            )
+            
+            ships = []
+            for mmsi, (lon, lat) in nearby:
+                position = self.client.hgetall(f"ship:position:{mmsi}")
+                info = self.client.hgetall(f"ship:info:{mmsi}")
+                
+                if position:
+                    ships.append({
+                        'mmsi': mmsi,
+                        'position': position,
+                        'info': info
+                    })
+            
+            return ships
+        except Exception as e:
+            print(f"Error getting ships in area: {e}")
+            return []
+    
+    def get_ship_details(self, mmsi):
+        """Get complete ship details"""
+        position = self.client.hgetall(f"ship:position:{mmsi}")
+        info = self.client.hgetall(f"ship:info:{mmsi}")
+        
+        return {
+            'mmsi': mmsi,
+            'position': position,
+            'info': info,
+            'found': bool(position or info)
+        }
+
+def sort_ais(messages, valkey_store):
     """
-    Filter and extract relevant data from AIS messages
-    Only processes message types 1, 2, 3, 5, and 18
+    Filter and extract relevant data from AIS messages and store in Valkey
     """
-    relevant_data = []
-
+    
     for msg in messages:
         try:
             if not hasattr(msg, 'msg_type'):
                 continue
-
+                
             msg_type = msg.msg_type
-
+            
             # Position Reports (Types 1, 2, 3)
             if msg_type in [1, 2, 3]:
                 data = {
@@ -39,7 +188,7 @@ def sort_ais(messages):
                     "position": {
                         "latitude": getattr(msg, 'lat', None),
                         "longitude": getattr(msg, 'lon', None),
-                        "accuracy": getattr(msg, 'accuracy', None)
+                        "accuracy": "HIGH" if getattr(msg, 'accuracy', None) else "LOW"
                     },
                     "movement": {
                         "sog": getattr(msg, 'speed', None),
@@ -54,12 +203,10 @@ def sort_ais(messages):
                         "message_type": msg_type
                     }
                 }
-                # Only add if we have essential position data
+                
                 if data["mmsi"] and data["position"]["latitude"] and data["position"]["longitude"]:
-                    relevant_data.append(data)
-                    print(
-                        f"Position Report - MMSI: {data['mmsi']}, Lat: {data['position']['latitude']}, Lon: {data['position']['longitude']}")
-
+                    valkey_store.update_ship_position(data)
+            
             # Static and Voyage Data (Type 5)
             elif msg_type == 5:
                 data = {
@@ -90,42 +237,36 @@ def sort_ais(messages):
                         "message_type": msg_type
                     }
                 }
-
-                # Only add if we have essential vessel data
+                
                 if data["mmsi"] and data["vessel_info"]["name"]:
-                    relevant_data.append(data)
-                    print(
-                        f"Vessel Info - MMSI: {data['mmsi']}, Name: {data['vessel_info']['name']}, Type: {data['vessel_info']['ship_type']}")
-
+                    valkey_store.update_ship_info(data)
+            
             # Class B Position Report (Type 18)
             elif msg_type == 18:
                 data = {
                     "mmsi": getattr(msg, 'mmsi', None),
-                    "timestamp": getattr(msg, 'timestamp', None),
+                    "timestamp": getattr(msg, 'timestamp', datetime.now(timezone.utc).isoformat()),
                     "position": {
                         "latitude": getattr(msg, 'lat', None),
                         "longitude": getattr(msg, 'lon', None),
-                        "accuracy": getattr(msg, 'accuracy', None)
+                        "accuracy": "HIGH" if getattr(msg, 'accuracy', None) else "LOW"
                     },
                     "movement": {
                         "sog": getattr(msg, 'speed', None),
                         "cog": getattr(msg, 'course', None),
                         "heading": getattr(msg, 'heading', None)
-                        # Note: Class B doesn't have rate of turn
                     },
+                    "voyage_info": {},
                     "source": {
                         "message_type": msg_type,
                         "class": "B"
                     }
                 }
-
-                # Only add if we have essential position data
+                
                 if data["mmsi"] and data["position"]["latitude"] and data["position"]["longitude"]:
-                    relevant_data.append(data)
-                    print(
-                        f"Class B Position - MMSI: {data['mmsi']}, Lat: {data['position']['latitude']}, Lon: {data['position']['longitude']}")
-
-            # Base Station Report (Type 4) - Optional
+                    valkey_store.update_ship_position(data)
+            
+            # Base Station Report (Type 4)
             elif msg_type == 4:
                 data = {
                     "mmsi": getattr(msg, 'mmsi', None),
@@ -140,51 +281,34 @@ def sort_ais(messages):
                     "position": {
                         "latitude": getattr(msg, 'lat', None),
                         "longitude": getattr(msg, 'lon', None),
-                        "accuracy": getattr(msg, 'accuracy', None)
+                        "accuracy": "HIGH" if getattr(msg, 'accuracy', None) else "LOW"
                     },
                     "source": {
                         "message_type": msg_type,
                         "type": "base_station"
                     }
                 }
-
+                
                 if data["mmsi"]:
-                    relevant_data.append(data)
-                    print(
-                        f"Base Station - MMSI: {data['mmsi']}, Lat: {data['position']['latitude']}, Lon: {data['position']['longitude']}")
-
-            else:
-                # Skip other message types
-                print(f"Skipping message type {msg_type} (not relevant)")
-                continue
-
+                    valkey_store.update_base_station(data)
+                    
         except Exception as e:
             print(f"Error processing message: {e}")
             continue
-
-    print(
-        f"\nProcessed {len(relevant_data)} relevant messages out of {len(messages)} total")
-    return relevant_data
-
-
+    
 class AISMessageHandler:
-    def __init__(self):
+    def __init__(self, valkey_store):
         self.messages = []
         self.relevant_messages = []
+        self.valkey_store = valkey_store
 
     def handle_message(self, decoded_msg):
         decoded = decoded_msg.decode()
-        print(f"Received AIS message type: {decoded.msg_type}")
+        # print(f"📡 Received AIS message type: {decoded.msg_type}")
         self.messages.append(decoded)
         ais_messages.append(str(decoded))
-
-        # Process and filter relevant messages
-        relevant = sort_ais([decoded])
-        if relevant:
-            self.relevant_messages.extend(relevant)
-
-ais_handler = AISMessageHandler() 
-
+    
+        sort_ais([decoded], self.valkey_store)
 
 def load_config(file_path='config.json'):
     try:
@@ -192,12 +316,19 @@ def load_config(file_path='config.json'):
             return json.load(file)
     except FileNotFoundError:
         print(f"File {file_path} not found")
-        return {}
+        return {"server": {"host": "127.0.0.1", "port": 12345}, "valkey": {"host": "localhost", "port": 6379}}
     except json.JSONDecodeError:
         print(f"Invalid JSON in {file_path}")
-        return {}
+        return {"server": {"host": "127.0.0.1", "port": 12345}, "valkey": {"host": "localhost", "port": 6379}}
 
 config = load_config()
+
+valkey_store = ValkeyAISStore(
+    host=config.get("valkey", {}).get("host", "localhost"),
+    port=config.get("valkey", {}).get("port", 6379)
+)
+
+ais_handler = AISMessageHandler(valkey_store)
 
 async def start_ais_udp_receiver():
     def run_receiver():
@@ -211,22 +342,33 @@ async def start_ais_udp_receiver():
     thread.start()
     return thread
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     await start_ais_udp_receiver()
     yield
-    # Shutdown
-# UDP server end
+    # Shutdown - could add cleanup here
 
 app = FastAPI(lifespan=lifespan)
-
 
 @app.get("/messages")
 async def get_messages():
     return ais_messages
 
+@app.get("/ships")
+async def get_ships():
+    """Get all ships with recent positions"""
+    try:
+        ships = valkey_store.get_ships_in_area(59.9139, 10.7522, 100)
+        return {"ships": ships, "count": len(ships)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/ship/{mmsi}")
+async def get_ship_details(mmsi: int):
+    """Get detailed info for specific ship"""
+    ship_data = valkey_store.get_ship_details(mmsi)
+    return ship_data
 
 @app.get("/clear")
 async def clear_messages():
