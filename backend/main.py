@@ -13,12 +13,14 @@ from pyais import decode
 from pyais.stream import UDPReceiver
 import threading
 from fastapi.middleware.cors import CORSMiddleware
+from scraper import VesselFinderScraper
 
 # Global variables
 ais_messages = []
 decoder = AISDecoder()
 tbq_ais = TagBlockQueue()
 queue_ais = NMEAQueue(tbq=tbq_ais)
+vessel_scraper = VesselFinderScraper()
 
 valkey_client = None
 
@@ -103,6 +105,12 @@ class ValkeyAISStore:
         
         self.client.hset(info_key, mapping=ship_info)
         
+        # Create IMO index for fast lookups
+        imo = data["vessel_info"]["imo"]
+        if imo and imo != 0:
+            self.client.set(f"imo:index:{imo}", mmsi)
+            print(f"🔍 Created IMO index: {imo} -> {mmsi}")
+        
         print(f"🚢 Updated vessel info for MMSI {mmsi}: {data['vessel_info']['name']}")
     
     def update_base_station(self, data):
@@ -168,6 +176,48 @@ class ValkeyAISStore:
             'found': bool(position or info)
         }
 
+    def get_ship_by_imo(self, imo):
+        """Get ship data by IMO number using index"""
+        try:
+            # Look up MMSI using IMO index
+            mmsi = self.client.get(f"imo:index:{imo}")
+            
+            if not mmsi:
+                return {
+                    'imo': imo,
+                    'found': False,
+                    'message': f'No ship data found for IMO {imo}',
+                    'ship': None
+                }
+            
+            # Get ship data using MMSI
+            ship_info = self.client.hgetall(f"ship:info:{mmsi}")
+            position_data = self.client.hgetall(f"ship:position:{mmsi}")
+            
+            return {
+                'imo': imo,
+                'found': True,
+                'ship': {
+                    'mmsi': mmsi,
+                    'imo': imo,
+                    'vessel_info': ship_info,
+                    'position': position_data,
+                    'scraped_data': {
+                        'source': 'AIS',
+                        'last_updated': ship_info.get('updated_at'),
+                        'data_completeness': 'complete' if ship_info.get('vessel_name') else 'partial'
+                    }
+                }
+            }
+            
+        except Exception as e:
+            return {
+                'imo': imo,
+                'found': False,
+                'error': str(e),
+                'ship': None
+            }
+    
 def sort_ais(messages, valkey_store):
     """
     Filter and extract relevant data from AIS messages and store in Valkey
@@ -355,7 +405,7 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173",
-                   "http://127.0.0.1:5173"],  # Vite dev server
+                   "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -394,6 +444,49 @@ async def get_ship_details(mmsi: int):
     """Get detailed info for specific ship"""
     ship_data = valkey_store.get_ship_details(mmsi)
     return ship_data
+
+
+@app.get("/ship/data/{mmsi}")
+async def get_ship_data(mmsi: int):
+    """Get scraped data for specific ship by MMSI number"""
+    try:
+        ship_info = valkey_store.client.hgetall(f"ship:info:{mmsi}")
+        
+        if not ship_info:
+            return {
+                "mmsi": mmsi,
+                "found": False,
+                "message": f"No ship data found for MMSI {mmsi}",
+                "imo": None
+            }
+        
+        imo = ship_info.get('imo')
+        if not imo or imo == '0':
+            return {
+                "mmsi": mmsi,
+                "found": True,
+                "message": f"Ship found but no IMO available for MMSI {mmsi}",
+                "imo": None,
+                "ship_info": ship_info
+            }
+        
+        scraped_data = vessel_scraper.scrape_vessel_data(imo)
+        
+        return {
+            "mmsi": mmsi,
+            "found": True,
+            "imo": imo,
+            "ais_data": ship_info,
+            "scraped_data": scraped_data
+        }
+        
+    except Exception as e:
+        return {
+            "mmsi": mmsi,
+            "found": False,
+            "error": str(e),
+            "imo": None
+        }
 
 @app.get("/clear")
 async def clear_messages():
