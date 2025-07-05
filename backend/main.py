@@ -12,6 +12,7 @@ from pyais.queue import NMEAQueue
 from pyais import decode
 from pyais.stream import UDPReceiver
 import threading
+from fastapi.middleware.cors import CORSMiddleware
 
 # Global variables
 ais_messages = []
@@ -19,7 +20,6 @@ decoder = AISDecoder()
 tbq_ais = TagBlockQueue()
 queue_ais = NMEAQueue(tbq=tbq_ais)
 
-# Valkey/Redis connection
 valkey_client = None
 
 class ValkeyAISStore:
@@ -351,6 +351,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173",
+                   "http://127.0.0.1:5173"],  # Vite dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/messages")
 async def get_messages():
     return ais_messages
@@ -363,6 +373,21 @@ async def get_ships():
         return {"ships": ships, "count": len(ships)}
     except Exception as e:
         return {"error": str(e)}
+    
+@app.get("/ships/in-area")
+async def get_ships_in_area(lat: float, lon: float, radius: float = 50.0):
+    """Get all ships within a specified area"""
+    try:
+        ships = valkey_store.get_ships_in_area(lat, lon, radius)
+        return {
+            "ships": ships, 
+            "count": len(ships),
+            "center": {"lat": lat, "lon": lon},
+            "radius_km": radius
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 
 @app.get("/ship/{mmsi}")
 async def get_ship_details(mmsi: int):
@@ -374,3 +399,4 @@ async def get_ship_details(mmsi: int):
 async def clear_messages():
     ais_messages.clear()
     return {"message": "All messages cleared"}
+

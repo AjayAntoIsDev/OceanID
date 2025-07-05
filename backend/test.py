@@ -1,16 +1,28 @@
-from pyais.stream import TCPConnection
+import requests
 
-host = '153.44.253.27'
-port = 5631
+# The URL for the vessel details page
+url = "https://www.vesselfinder.com/vessels/details/9359997"
 
-for msg in TCPConnection(host, port=port):
-    decoded_message = msg.decode()
-    ais_content = decoded_message
+# The headers you want to use
+headers = {
+    "User-Agent": "def not scraping your data",
+}
 
-    print('*' * 80)
-    if msg.tag_block:
-        # decode & print the tag block if it is available
-        msg.tag_block.init()
-        print(msg.tag_block.asdict())
+try:
+    # Make the GET request with the specified headers
+    response = requests.get(url, headers=headers)
 
-    print(ais_content)
+    # Check if the request was successful (status code 200)
+    if response.status_code == 200:
+        # Print the raw HTML content of the response
+        print("Successfully retrieved the HTML content.")
+        # Print first 1000 characters to avoid flooding console
+        print(response.text)
+        # You can save response.text to a file or parse it further with BeautifulSoup
+    else:
+        print(
+            f"Failed to retrieve the page. Status code: {response.status_code}")
+        print(response.text)  # Print error content if available
+
+except requests.exceptions.RequestException as e:
+    print(f"An error occurred: {e}")

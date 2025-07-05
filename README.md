@@ -33,15 +33,15 @@
 ## Backend
 - [] Build a simple script for the clients(RTL-SDR) to connect to the server
 - [X] Find a way to send simulated AIS data to the server
-- [] Make a DB for the server
+- [X] Make a DB for the server
 - [X] Receive Decode the AIS data 
 - [] Find more info on the ship and save it in the server
-- [] Make a endpoint to send the data to the frontend
+- [X] Make a endpoint to send the data to the frontend
 - [] Use websockets
 
 ## Frontend
-- [] Make the map view
-- [] Receive the data from the server (Websockets?)
-- [] Plot the ships on the map
+- [X] Make the map view
+- [X] Receive the data from the server (Websockets?)
+- [X] Plot the ships on the map
 - [] Show more info about the ship on hover
 - [] Make it pretty
