@@ -101,6 +101,215 @@ interface DetailedShipData {
     };
 }
 
+const KnotsIndicator = ({ speed = 0, className = "" }) => {
+    const [animatedSpeed, setAnimatedSpeed] = useState(0);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setAnimatedSpeed(parseFloat(speed) || 0);
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [speed]);
+
+    const maxSpeed = 30;
+    const percentage = Math.min((animatedSpeed / maxSpeed) * 100, 100);
+    const rotation = (percentage / 100) * 180 - 90; // -90 to 90 degrees
+
+    const getSpeedColor = (knots) => {
+        if (knots < 5) return 'text-blue-400';
+        if (knots < 10) return 'text-green-400';
+        if (knots < 15) return 'text-yellow-400';
+        if (knots < 20) return 'text-orange-400';
+        return 'text-red-400';
+    };
+
+    const getGlowColor = (knots) => {
+        if (knots < 5) return 'shadow-blue-500/20';
+        if (knots < 10) return 'shadow-green-500/20';
+        if (knots < 15) return 'shadow-yellow-500/20';
+        if (knots < 20) return 'shadow-orange-500/20';
+        return 'shadow-red-500/20';
+    };
+
+    return (
+        <div className={`stat bg-base-200 rounded-lg p-2 relative overflow-hidden ${className}`}>
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-primary/5 to-primary/10 rounded-lg"></div>
+
+            <div className="relative z-10">
+                <div className="stat-title text-xs flex items-center gap-1">
+                    Speed
+                    <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
+                </div>
+                
+                <div className="flex items-center gap-2 my-1">
+                    <div className="relative w-8 h-4 overflow-hidden">
+                        <div className="absolute inset-0 border-2 border-base-300 rounded-t-full"></div>
+                        <div
+                            className="absolute bottom-0 left-1/2 w-0.5 h-3 bg-primary origin-bottom transition-transform duration-500 ease-out"
+                            style={{
+                                transform: `translateX(-50%) rotate(${rotation}deg)`,
+                            }}
+                        />
+                    </div>
+                    
+                    {/* Speed value with glow effect */}
+                    <div className={`stat-value text-lg font-bold ${getSpeedColor(animatedSpeed)} transition-colors duration-300`}>
+                        <span className={`drop-shadow-lg ${getGlowColor(animatedSpeed)}`}>
+                            {animatedSpeed.toFixed(1)}
+                        </span>
+                    </div>
+                </div>
+                
+                <div className="stat-desc text-xs flex items-center justify-between">
+                    <span className="pl-0">knots</span>
+                    <div className="flex items-center gap-1">
+                        <div className={`w-1 h-1 rounded-full ${animatedSpeed > 0 ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                        <span className="text-xs">{animatedSpeed > 0 ? 'Moving' : 'Stationary'}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const HeadingIndicator = ({ heading = 0, className = "" }) => {
+    const [animatedHeading, setAnimatedHeading] = useState(0);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setAnimatedHeading(parseFloat(heading) || 0);
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [heading]);
+
+    const getDirectionLabel = (degrees) => {
+        if (degrees >= 337.5 || degrees < 22.5) return 'N';
+        if (degrees >= 22.5 && degrees < 67.5) return 'NE';
+        if (degrees >= 67.5 && degrees < 112.5) return 'E';
+        if (degrees >= 112.5 && degrees < 157.5) return 'SE';
+        if (degrees >= 157.5 && degrees < 202.5) return 'S';
+        if (degrees >= 202.5 && degrees < 247.5) return 'SW';
+        if (degrees >= 247.5 && degrees < 292.5) return 'W';
+        if (degrees >= 292.5 && degrees < 337.5) return 'NW';
+        return 'N';
+    };
+
+    return (
+        <div className={`stat bg-base-200 rounded-lg p-2 relative overflow-hidden ${className}`}>
+            {/* Background gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-accent/5 to-accent/10 rounded-lg"></div>
+            
+            {/* Direction indicator */}
+            <div className="absolute top-1 right-1 text-xs text-accent font-bold">
+                {getDirectionLabel(animatedHeading)}
+            </div>
+
+            <div className="relative z-10">
+                <div className="stat-title text-xs flex items-center gap-1">
+                    Heading
+                    <div className="w-1 h-1 bg-accent rounded-full animate-pulse"></div>
+                </div>
+                
+                <div className="flex items-center gap-2 my-1">
+                    {/* Ship heading indicator */}
+                    <div className="relative w-8 h-8 border-2 border-base-300 rounded-full">
+                        <div className="absolute inset-1 border border-base-300 rounded-full"></div>
+                        {/* Ship bow direction */}
+                        <div
+                            className="absolute top-1/2 left-1/2 transition-transform duration-500 ease-out"
+                            style={{
+                                transform: `translateX(-50%) translateY(-50%) rotate(${animatedHeading}deg)`,
+                            }}
+                        >
+                            <div className="w-0 h-0 border-l-[3px] border-r-[3px] border-b-[6px] border-l-transparent border-r-transparent border-b-accent -translate-y-2"></div>
+                        </div>
+                        <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-accent rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
+                    </div>
+                    
+                    {/* Heading value */}
+                    <div className="stat-value text-lg font-bold text-accent transition-colors duration-300">
+                        <span className="drop-shadow-lg">
+                            {Math.round(animatedHeading)}°
+                        </span>
+                    </div>
+                </div>
+                
+                <div className="stat-desc text-xs">
+                    ship's bow
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const getNavigationStatus = (navStatus: string) => {
+    const statusCode = (() => {
+        if (typeof navStatus === 'string') {
+            const match = navStatus.match(/:?\s*(\d+)\s*>?$/);
+            if (match) {
+                return parseInt(match[1]);
+            }
+            // Handle plain string numbers
+            const parsed = parseInt(navStatus);
+            if (!isNaN(parsed)) {
+                return parsed;
+            }
+        }
+        if (typeof navStatus === 'number') {
+            return navStatus;
+        }
+        return 15;
+    })();
+
+    
+    const statusMap = {
+        0: { text: "Under way using engine", color: "text-green-500", icon: "⚡" },
+        1: { text: "At anchor", color: "text-blue-500", icon: "⚓" },
+        2: { text: "Not under command", color: "text-red-500", icon: "⚠️" },
+        3: { text: "Restricted maneuverability", color: "text-orange-500", icon: "⚠️" },
+        4: { text: "Constrained by draught", color: "text-yellow-500", icon: "⚠️" },
+        5: { text: "Moored", color: "text-purple-500", icon: "🔗" },
+        6: { text: "Aground", color: "text-red-600", icon: "⚠️" },
+        7: { text: "Engaged in fishing", color: "text-cyan-500", icon: "🎣" },
+        8: { text: "Under way sailing", color: "text-emerald-500", icon: "⛵" },
+        9: { text: "Reserved (Hazardous cargo HSC)", color: "text-amber-600", icon: "⚠️" },
+        10: { text: "Reserved (Dangerous goods WIG)", color: "text-amber-700", icon: "⚠️" },
+        11: { text: "Towing astern", color: "text-indigo-500", icon: "🚢" },
+        12: { text: "Pushing/towing alongside", color: "text-indigo-600", icon: "🚢" },
+        13: { text: "Reserved for future use", color: "text-gray-500", icon: "❓" },
+        14: { text: "AIS-SART/MOB/EPIRB active", color: "text-red-500", icon: "🆘" },
+        15: { text: "Undefined/Default", color: "text-gray-400", icon: "❓" }
+    };
+    
+    return statusMap[statusCode] || statusMap[15];
+};
+
+const NavigationStatusIndicator = ({ navStatus, className = "" }) => {
+    const status = getNavigationStatus(navStatus);
+    
+    return (
+        <div
+            className={`stat bg-base-200 rounded-lg p-2 relative overflow-hidden col-span-2 ${className}`}>
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-info/5 to-info/10 rounded-lg"></div>
+            <div className="relative z-10">
+                <div className="stat-title text-xs flex items-center gap-1">
+                    Navigation Status
+                    <div className="w-1 h-1 bg-info rounded-full animate-pulse"></div>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                    <div
+                        className={`w-6 h-6 rounded-full ${status.color} flex items-center justify-center text-xs`}>
+                        <span className="text-xs">{status.icon}</span>
+                    </div>
+                    <div className={`stat-desc text-md font-medium ${status.color}`}>
+                        {status.text}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const FlagImage: React.FC<{ country: string; className?: string }> = ({ country, className }) => {
     const [flagUrl, setFlagUrl] = useState<string | null>(null);
 
@@ -351,14 +560,12 @@ function App() {
             const aisData = shipData.ais_data;
             const scrapedData = shipData.scraped_data;
 
-            console.log("Rendering detailed ship data:", {
-                mmsi: ship.mmsi,
-                aisData,
-                scrapedData,
-            });
             return (
                 <div className="card bg-base-100 shadow-xl max-w-5xl">
-                    <div className="card-body px-0 pt-0">
+                    <div
+                        className={`card-body px-0 ${
+                            scrapedData?.Image ? "pt-0" : "pt-4"
+                        }`}>
                         {/* Ship Image */}
                         {scrapedData?.Image && (
                             <figure className="relative">
@@ -388,7 +595,8 @@ function App() {
                                     "Unknown Vessel"}
                                 {(aisData?.callsign || ship.info.callsign) && (
                                     <span className="badge badge-outline ml-2">
-                                        {aisData?.callsign || ship.info.callsign}
+                                        {aisData?.callsign ||
+                                            ship.info.callsign}
                                     </span>
                                 )}
                             </h2>
@@ -415,73 +623,7 @@ function App() {
                                             "N/A"}
                                     </span>
                                 </div>
-                            </div>
-
-                            {/* Navigation Data */}
-                            <div className="divider divider-secondary">
-                                Navigation
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Speed
-                                    </div>
-                                    <div className="stat-value text-lg">
-                                        {ship.position.sog}
-                                    </div>
-                                    <div className="stat-desc">knots</div>
-                                </div>
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Course
-                                    </div>
-                                    <div className="stat-value text-lg">
-                                        {ship.position.cog}°
-                                    </div>
-                                </div>
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Heading
-                                    </div>
-                                    <div className="stat-value text-lg">
-                                        {ship.position.heading}°
-                                    </div>
-                                </div>
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Status
-                                    </div>
-                                    <div className="stat-desc text-xs">
-                                        {ship.position.nav_status}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-between items-center text-sm mt-2">
-                                <span className="font-semibold">
-                                    Destination:
-                                </span>
-                                <span className="badge badge-accent">
-                                    {aisData?.destination || "N/A"}
-                                </span>
-                            </div>
-
-                            {aisData?.eta_month && (
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="font-semibold">ETA:</span>
-                                    <span>
-                                        {aisData.eta_month}/{aisData.eta_day}{" "}
-                                        {aisData.eta_hour}:{aisData.eta_minute}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Vessel Specifications */}
-                            <div className="divider divider-accent">
-                                Specifications
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="flex justify-between col-span-2">
+                                <div className="flex justify-between">
                                     <span className="font-semibold">
                                         Year Built:
                                     </span>
@@ -492,41 +634,60 @@ function App() {
                                 </div>
                             </div>
 
-                            {/* Owner Information */}
-                            {scrapedData?.["Registered Owner"] && (
-                                <>
-                                    <div className="divider divider-warning">
-                                        Owner
-                                    </div>
-                                    <div className="alert alert-info">
-                                        <span className="text-sm">
-                                            {scrapedData["Registered Owner"]}
-                                        </span>
-                                    </div>
-                                </>
-                            )}
+                            {/* Navigation Data*/}
+                            <div className="grid grid-cols-2 gap-2 text-sm mt-4">
+                                <KnotsIndicator speed={ship.position.sog} />
+                                <HeadingIndicator
+                                    heading={ship.position.heading}
+                                />
+                                <NavigationStatusIndicator
+                                    navStatus={ship.position.nav_status}
+                                />
+                            </div>
+
 
                             {/* Timestamps */}
                             <div className="divider">Updates</div>
                             <div className="text-xs text-base-content/70 space-y-1">
-                                <div className="flex justify-between">
-                                    <span>Last AIS:</span>
-                                    <span>
-                                        {new Date(
-                                            ship.position.last_seen
-                                        ).toLocaleString()}
-                                    </span>
-                                </div>
-                                {aisData?.updated_at && (
+                                {/* Timestamps */}
                                     <div className="flex justify-between">
-                                        <span>Data Updated:</span>
+                                        <span>Last AIS:</span>
                                         <span>
-                                            {new Date(
-                                                aisData.updated_at
-                                            ).toLocaleString()}
+                                            {(() => {
+                                                const now = new Date();
+                                                const lastSeen = new Date(
+                                                    ship.position.last_seen +
+                                                        "Z"
+                                                ); // Add Z to ensure UTC parsing
+                                                const diffMs =
+                                                    now.getTime() -
+                                                    lastSeen.getTime();
+                                                const diffMinutes = Math.floor(
+                                                    diffMs / (1000 * 60)
+                                                );
+                                                const diffHours = Math.floor(
+                                                    diffMinutes / 60
+                                                );
+                                                const diffDays = Math.floor(
+                                                    diffHours / 24
+                                                );
+
+                                                if (diffDays > 0) {
+                                                    return `${diffDays}d ${
+                                                        diffHours % 24
+                                                    }h ago`;
+                                                } else if (diffHours > 0) {
+                                                    return `${diffHours}h ${
+                                                        diffMinutes % 60
+                                                    }m ago`;
+                                                } else if (diffMinutes > 0) {
+                                                    return `${diffMinutes}m ago`;
+                                                } else {
+                                                    return "Just now";
+                                                }
+                                            })()}
                                         </span>
                                     </div>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -534,14 +695,11 @@ function App() {
             );
         }
 
-        // Fallback to basic AIS data if ship not found in detailed endpoint
+        // Fallback to basic AIS data with 
         if (shipNotFound || !hasDetailedData) {
             return (
                 <div className="card bg-base-100 shadow-xl max-w-md">
                     <div className="card-body">
-                        <h2 className="card-title text-primary mb-4">
-                            {ship.info.vessel_name || "Unknown Vessel"}
-                        </h2>
 
                         {shipNotFound && (
                             <div className="alert alert-warning mb-4">
@@ -565,127 +723,81 @@ function App() {
                         )}
 
                         {/* Basic AIS Data */}
-                        <div className="space-y-3">
+                        <div className="px-6">
+                            <h2 className="card-title text-primary mb-4">
+                                {
+                                    ship.info.vessel_name ||
+                                    "Unknown Vessel"}
+                                {( ship.info.callsign) && (
+                                    <span className="badge badge-outline ml-2">
+                                        {
+                                            ship.info.callsign}
+                                    </span>
+                                )}
+                            </h2>
+                            {/* Primary Information */}
                             <div className="grid grid-cols-1 gap-2 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="font-semibold">MMSI:</span>
-                                    <span className="badge badge-outline">
-                                        {ship.mmsi}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
                                     <span className="font-semibold">
-                                        Callsign:
+                                        MMSI / IMO:
                                     </span>
-                                    <span>{ship.info.callsign || "N/A"}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="font-semibold">IMO:</span>
-                                    <span>{ship.info.imo || "N/A"}</span>
+                                    <span className="badge badge-outline">
+                                        {ship.mmsi} /{" "}
+                                        {ship?.info.imo ||
+                                            "N/A"}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="font-semibold">
                                         Ship Type:
                                     </span>
                                     <span className="badge badge-secondary">
-                                        {ship.info.ship_type || "N/A"}
+                                        {ship?.info.ship_type ? 
+                                            ship.info.ship_type.split('.').pop()?.replace(/[:\d>]/g, '').trim() || "N/A" 
+                                            : "N/A"}
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="divider divider-primary">
-                                Navigation
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Speed
-                                    </div>
-                                    <div className="stat-value text-lg">
-                                        {ship.position.sog}
-                                    </div>
-                                    <div className="stat-desc">knots</div>
-                                </div>
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Course
-                                    </div>
-                                    <div className="stat-value text-lg">
-                                        {ship.position.cog}°
-                                    </div>
-                                </div>
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Heading
-                                    </div>
-                                    <div className="stat-value text-lg">
-                                        {ship.position.heading}°
-                                    </div>
-                                </div>
-                                <div className="stat bg-base-200 rounded-lg p-2">
-                                    <div className="stat-title text-xs">
-                                        Status
-                                    </div>
-                                    <div className="stat-desc text-xs">
-                                        {ship.position.nav_status}
-                                    </div>
-                                </div>
+                            {/* Navigation Data*/}
+                            <div className="grid grid-cols-2 gap-2 text-sm mt-4">
+                                <KnotsIndicator speed={ship.position.sog} />
+                                <HeadingIndicator
+                                    heading={ship.position.heading}
+                                />
+                                <NavigationStatusIndicator
+                                    navStatus={ship.position.nav_status}
+                                />
                             </div>
 
-                            <div className="flex justify-between text-sm">
-                                <span className="font-semibold">
-                                    Destination:
-                                </span>
-                                <span className="badge badge-accent">
-                                    {ship.info.destination || "N/A"}
-                                </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="font-semibold">Draught:</span>
-                                <span>{ship.info.draught || "N/A"}m</span>
-                            </div>
-                        </div>
-
-                        <div className="divider">Updates</div>
-                        <div className="text-xs text-base-content/70 space-y-1">
-                            <div className="flex justify-between">
-                                <span>Last Seen:</span>
-                                <span>
-                                    {new Date(
-                                        ship.position.last_seen
-                                    ).toLocaleString()}
-                                </span>
-                            </div>
-                            {ship.info.updated_at && (
+                            {/* Timestamps */}
+                            <div className="divider">Updates</div>
+                            <div className="text-xs text-base-content/70 space-y-1">
                                 <div className="flex justify-between">
-                                    <span>AIS Updated:</span>
+                                    <span>Last AIS:</span>
                                     <span>
-                                        {new Date(
-                                            ship.info.updated_at
-                                        ).toLocaleString()}
+                                        {(() => {
+                                            const now = new Date();
+                                            const lastSeen = new Date(ship.position.last_seen + 'Z'); // Add Z to ensure UTC parsing
+                                            const diffMs = now.getTime() - lastSeen.getTime();
+                                            const diffMinutes = Math.floor(diffMs / (1000 * 60));
+                                            const diffHours = Math.floor(diffMinutes / 60);
+                                            const diffDays = Math.floor(diffHours / 24);
+                                            
+                                            if (diffDays > 0) {
+                                                return `${diffDays}d ${diffHours % 24}h ago`;
+                                            } else if (diffHours > 0) {
+                                                return `${diffHours}h ${diffMinutes % 60}m ago`;
+                                            } else if (diffMinutes > 0) {
+                                                return `${diffMinutes}m ago`;
+                                            } else {
+                                                return "Just now";
+                                            }
+                                        })()}
                                     </span>
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Retry button for failed lookups */}
-                        {shipNotFound && (
-                            <div className="card-actions justify-end mt-4">
-                                <button
-                                    onClick={() => fetchShipDetails(ship.mmsi)}
-                                    disabled={isLoadingDetails}
-                                    className="btn btn-primary btn-sm">
-                                    {isLoadingDetails ? (
-                                        <>
-                                            <span className="loading loading-spinner loading-sm"></span>
-                                            Retrying...
-                                        </>
-                                    ) : (
-                                        "Retry Lookup"
-                                    )}
-                                </button>
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             );
@@ -810,3 +922,4 @@ function App() {
 }
 
 export default App;
+
