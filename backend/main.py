@@ -493,3 +493,20 @@ async def clear_messages():
     ais_messages.clear()
     return {"message": "All messages cleared"}
 
+@app.get("/ships/count")
+async def get_ships_count():
+    """Get count of unique ships in the database"""
+    try:
+        position_keys = valkey_store.client.keys("ship:position:*")
+        unique_ships_count = len(position_keys)
+        
+        info_keys = valkey_store.client.keys("ship:info:*")
+        ships_with_info_count = len(info_keys)
+        
+        return {
+            "unique_ships": unique_ships_count,
+            "ships_with_info": ships_with_info_count,
+        }
+    except Exception as e:
+        return {"error": str(e), "unique_ships": 0}
+
