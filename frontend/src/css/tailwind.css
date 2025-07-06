@@ -1,1 +1,21 @@
 @import "tailwindcss";
+@plugin "daisyui" {
+    themes: winter --default;
+  }
+
+
+.leaflet-popup-content {
+  width: 90vw !important;
+  max-width: 400px !important;
+  margin: 0% !important;
+}
+
+@media (min-width: 640px) {
+  .leaflet-popup-content {
+    width: 400px !important;
+  }
+}
+
+.leaflet-popup-content-wrapper {
+    padding: 0% !important;
+}

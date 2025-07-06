@@ -464,7 +464,7 @@ async def get_ship_data(mmsi: int):
         if not imo or imo == '0':
             return {
                 "mmsi": mmsi,
-                "found": True,
+                "found": False,
                 "message": f"Ship found but no IMO available for MMSI {mmsi}",
                 "imo": None,
                 "ship_info": ship_info
