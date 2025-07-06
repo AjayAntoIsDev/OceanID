@@ -18,7 +18,7 @@ yay -S valkey # Yes i use arch and you should too
 sudo systemctl start valkey
 git clone https://github.com/AjayAntoIsDev/OceanID
 cd OceanID/backend
-pip install -r requirements.txt
+pip install fastapi uvicorn redis pyais requests beautifulsoup4 lxml
 fastapi run main.py
 ```
 (Note:if you dont have a real RTL-SDR you can just run the relay.py to use the raw AIS data from Norwegian Coastal Administration instead)
