@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""
-TCP to UDP Relay Script
-Connects to a TCP server and relays all received messages to a UDP server on localhost.
-"""
+
 
 import socket
 import threading
 import time
 import logging
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'

@@ -2,6 +2,7 @@ import "./App.css";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { useEffect, useState, useRef } from "react";
 import L from "leaflet";
+import config from "./config";
 
 const createSquareIcon = (heading: string) => {
     const headingDegrees = parseFloat(heading) || 0;
@@ -203,10 +204,8 @@ const HeadingIndicator = ({ heading = 0, className = "" }) => {
 
     return (
         <div className={`stat bg-base-200 rounded-lg p-2 relative overflow-hidden ${className}`}>
-            {/* Background gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-transparent via-accent/5 to-accent/10 rounded-lg"></div>
             
-            {/* Direction indicator */}
             <div className="absolute top-1 right-1 text-xs text-accent font-bold">
                 {getDirectionLabel(animatedHeading)}
             </div>
@@ -218,10 +217,8 @@ const HeadingIndicator = ({ heading = 0, className = "" }) => {
                 </div>
                 
                 <div className="flex items-center gap-2 my-1">
-                    {/* Ship heading indicator */}
                     <div className="relative w-8 h-8 border-2 border-base-300 rounded-full">
                         <div className="absolute inset-1 border border-base-300 rounded-full"></div>
-                        {/* Ship bow direction */}
                         <div
                             className="absolute top-1/2 left-1/2 transition-transform duration-500 ease-out"
                             style={{
@@ -233,7 +230,6 @@ const HeadingIndicator = ({ heading = 0, className = "" }) => {
                         <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-accent rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
                     </div>
                     
-                    {/* Heading value */}
                     <div className="stat-value text-lg font-bold text-accent transition-colors duration-300">
                         <span className="drop-shadow-lg">
                             {Math.round(animatedHeading)}°
@@ -256,7 +252,6 @@ const getNavigationStatus = (navStatus: string) => {
             if (match) {
                 return parseInt(match[1]);
             }
-            // Handle plain string numbers
             const parsed = parseInt(navStatus);
             if (!isNaN(parsed)) {
                 return parsed;
@@ -366,39 +361,12 @@ function App() {
     );
     const [activePopupMmsi, setActivePopupMmsi] = useState<string | null>(null);
     const [shipsCount, setShipsCount] = useState<ShipsCountResponse | null>(null);
-    const [showInfoModal, setShowInfoModal] = useState(true);
+    const [showInfoModal, setShowInfoModal] = useState(config.ui.showInfoModalOnLoad);
     const mapRef = useRef<L.Map | null>(null);
 
-    const REFRESH_INTERVAL = 5000;
-
-    const DEFAULT_CENTER = { lat: 59.9139, lon: 10.7522 };
-
     const calculateRadiusFromZoom = (zoom: number): number => {
-        const zoomToRadius: { [key: number]: number } = {
-            1: 3000,
-            2: 2500,
-            3: 2000,
-            4: 1500,
-            5: 1000,
-            6: 700,
-            7: 500,
-            8: 300,
-            9: 200,
-            10: 150,
-            11: 100,
-            12: 70,
-            13: 50,
-            14: 30,
-            15: 20,
-            16: 15,
-            17: 10,
-            18: 7,
-            19: 5,
-            20: 3,
-        };
-
         const roundedZoom = Math.round(zoom);
-        return zoomToRadius[roundedZoom] || 100;
+        return config.map.zoomToRadiusMapping[roundedZoom] || 100;
     };
 
     const getCurrentMapInfo = (): {
@@ -414,7 +382,7 @@ function App() {
                 radius,
             };
         }
-        return { center: DEFAULT_CENTER, radius: 50 };
+        return { center: config.map.defaultCenter, radius: 50 };
     };
 
     const fetchShipDetails = async (mmsi: string) => {
@@ -425,7 +393,7 @@ function App() {
         setLoadingShipDetails((prev) => new Set([...prev, mmsi]));
         try {
             const response = await fetch(
-                `http://127.0.0.1:8000/ship/data/${mmsi}`
+                `${config.api.baseUrl}${config.api.endpoints.shipData}/${mmsi}`
             );
             const data: DetailedShipData = await response.json();
             setSelectedShipData((prev) => ({
@@ -457,7 +425,7 @@ function App() {
 
     const fetchAllShips = async () => {
         try {
-            const response = await fetch("http://127.0.0.1:8000/ships/");
+            const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.ships}`);
             const data: ShipsResponse = await response.json();
             setShips(data.ships);
             setLastUpdate(new Date());
@@ -478,7 +446,7 @@ function App() {
     ) => {
         try {
             const response = await fetch(
-                `http://127.0.0.1:8000/ships/in-area?lat=${lat}&lon=${lon}&radius=${radius}`
+                `${config.api.baseUrl}${config.api.endpoints.shipsInArea}?lat=${lat}&lon=${lon}&radius=${radius}`
             );
             const data: ShipsResponse = await response.json();
             setShips(data.ships);
@@ -495,7 +463,7 @@ function App() {
 
     const fetchShipsCount = async () => {
         try {
-            const response = await fetch("http://127.0.0.1:8000/ships/count");
+            const response = await fetch(`${config.api.baseUrl}${config.api.endpoints.shipsCount}`);
             const data: ShipsCountResponse = await response.json();
             setShipsCount(data);
             return data;
@@ -548,7 +516,7 @@ function App() {
             if (!isInitialLoad) {
                 updateShips();
             }
-        }, REFRESH_INTERVAL);
+        }, config.map.refreshInterval);
 
         const cleanup = handleMapEvents();
 
@@ -669,9 +637,7 @@ function App() {
                             </div>
 
 
-                            {/* Timestamps */}
                             <div className="text-xs text-base-content/70 space-y-1 mt-4">
-                                {/* Timestamps */}
                                     <div className="flex justify-between">
                                         <span>Last AIS:</span>
                                         <span>
@@ -680,7 +646,7 @@ function App() {
                                                 const lastSeen = new Date(
                                                     ship.position.last_seen +
                                                         "Z"
-                                                ); // Add Z to ensure UTC parsing
+                                                ); 
                                                 const diffMs =
                                                     now.getTime() -
                                                     lastSeen.getTime();
@@ -717,7 +683,6 @@ function App() {
             );
         }
 
-        // Fallback to basic AIS data with 
         if (shipNotFound || !hasDetailedData) {
             return (
                 <div className="card bg-base-100 shadow-xl max-w-md">
@@ -744,7 +709,6 @@ function App() {
                             </div>
                         )}
 
-                        {/* Basic AIS Data */}
                         <div className="px-6">
                             <h2 className="card-title text-primary mb-4">
                                 {
@@ -757,7 +721,6 @@ function App() {
                                     </span>
                                 )}
                             </h2>
-                            {/* Primary Information */}
                             <div className="grid grid-cols-1 gap-2 text-sm">
                                 <div className="flex justify-between">
                                     <span className="font-semibold">
@@ -781,7 +744,6 @@ function App() {
                                 </div>
                             </div>
 
-                            {/* Navigation Data*/}
                             <div className="grid grid-cols-2 gap-2 text-sm mt-4">
                                 <KnotsIndicator speed={ship.position.sog} />
                                 <HeadingIndicator
@@ -792,7 +754,6 @@ function App() {
                                 />
                             </div>
 
-                            {/* Timestamps */}
                             <div className="text-xs text-base-content/70 space-y-1 mt-4">
                                 <div className="flex justify-between">
                                     <span>Last AIS:</span>
@@ -828,7 +789,7 @@ function App() {
     };
 
     return (
-        <div data-theme="lemonade" className="min-h-screen">
+        <div data-theme={config.ui.theme} className="min-h-screen">
             {/* Info Modal */}
             {showInfoModal && (
                 <div className="modal modal-open z-50">
@@ -867,7 +828,6 @@ function App() {
                         </div>
 
                         <div className="space-y-6 mt-4">
-                            {/* Tech Stack */}
                             <div className="card bg-base-200">
                                 <div className="card-body">
                                     <h3 className="card-title text-lg">
@@ -902,7 +862,6 @@ function App() {
                                 </div>
                             </div>
 
-                            {/* Current Stats */}
                             <div className="stats shadow w-full">
                                 <div className="stat">
                                     <div className="stat-title">
@@ -971,15 +930,15 @@ function App() {
             )}
 
             <MapContainer
-                center={[59.5, 10.6]}
-                zoom={10}
+                center={[config.map.defaultCenter.lat, config.map.defaultCenter.lon]}
+                zoom={config.map.defaultZoom}
                 scrollWheelZoom={true}
                 className="h-screen w-full z-10"
                 ref={mapRef}
                 zoomControl={false}>
                 <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution={config.external.tileLayerAttribution}
+                    url={config.external.tileLayerUrl}
                 />
                 {ships.map((ship) => (
                     <Marker
