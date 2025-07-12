@@ -30,7 +30,7 @@ interface AppConfig {
 
 const config: AppConfig = {
   api: {
-    baseUrl: "http://127.0.0.1:8000",
+    baseUrl: "https://oceanid-backend.ajayanto.me",
     endpoints: {
       ships: "/ships/",
       shipsInArea: "/ships/in-area",
